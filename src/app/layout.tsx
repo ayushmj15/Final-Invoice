@@ -8,6 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://final-invoice-psi.vercel.app/"),
   title: "InvoiceMatch AI | Find every match. Catch every mismatch.",
   description: "AI-powered GST invoice reconciliation, built for India's small businesses.",
 };
