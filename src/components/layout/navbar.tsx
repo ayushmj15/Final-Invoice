@@ -5,10 +5,14 @@ import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/app-store";
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const user = useAppStore(state => state.user);
+  const logout = useAppStore(state => state.logout);
   const { scrollY } = useScroll();
 
   const navBackground = useTransform(
@@ -74,14 +78,28 @@ export function Navbar() {
               ))}
             </ul>
             <div className="flex items-center gap-4 border-l border-white/10 pl-8">
-              <Link href="/signin" className="text-sm text-zinc-300 hover:text-white transition-colors font-medium">
-                Sign In
-              </Link>
-              <Link href="/reconcile">
-                <Button size="sm" variant="primary">
-                  Get Started
-                </Button>
-              </Link>
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 bg-white/5 rounded-full pl-2 pr-4 py-1.5 border border-white/5">
+                    <img src={user.avatar} alt="Avatar" className="w-8 h-8 rounded-full bg-zinc-800" />
+                    <span className="text-sm font-medium text-white">{user.name}</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => logout()} className="text-zinc-400 hover:text-white">
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Link href="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">
+                    Sign In
+                  </Link>
+                  <Link href="/reconcile">
+                    <Button variant="primary" size="sm" className="box-glow">
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
 
@@ -117,18 +135,29 @@ export function Navbar() {
                 </li>
               ))}
               <li className="pt-6 mt-6 border-t border-white/10">
-                <Link
-                  href="/signin"
-                  className="text-zinc-300 hover:text-white block w-full mb-6"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Sign In
-                </Link>
-                <Link href="/reconcile" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full" variant="primary">
-                    Get Started
-                  </Button>
-                </Link>
+                {user ? (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <img src={user.avatar} alt="Avatar" className="w-10 h-10 rounded-full bg-zinc-800" />
+                      <div>
+                        <div className="text-white font-medium">{user.name}</div>
+                        <div className="text-zinc-500 text-sm">{user.email}</div>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="w-full justify-center" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
+                      Sign Out
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="outline" className="w-full justify-center">Sign In</Button>
+                    </Link>
+                    <Link href="/reconcile" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="primary" className="w-full justify-center">Get Started</Button>
+                    </Link>
+                  </div>
+                )}
               </li>
             </ul>
           </motion.div>

@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Search, CheckCircle2, AlertCircle, XCircle, ArrowRight, X, FileQuestion } from "lucide-react";
+import { Download, Search, CheckCircle2, AlertCircle, XCircle, ArrowRight, X, FileQuestion, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReconcileStore, MatchResult } from "@/store/reconcile-store";
+import { useAppStore } from "@/store/app-store";
+import * as XLSX from "xlsx";
 
 export default function ResultsDashboard() {
   const router = useRouter();
   const results = useReconcileStore(state => state.results);
+  const addHistoryRecord = useAppStore(state => state.addHistoryRecord);
   
   const [activeTab, setActiveTab] = useState("All");
   const [selectedInvoice, setSelectedInvoice] = useState<MatchResult | null>(null);
@@ -35,6 +38,42 @@ export default function ResultsDashboard() {
   const reviewCount = results.filter(r => r.status === "Review").length;
   const mismatchCount = results.filter(r => r.status === "Mismatch").length;
   const missingCount = results.filter(r => r.status === "Missing").length;
+
+  const handleExport = () => {
+    // 1. Create a simplified JSON array for export
+    const exportData = results.map(r => ({
+      "Book Supplier": r.bookSupplier,
+      "Book Invoice": r.bookInvoice,
+      "Book Date": r.bookDate,
+      "Book Amount": r.bookAmount,
+      "GSTR Supplier": r.gstrSupplier,
+      "GSTR Invoice": r.gstrInvoice,
+      "GSTR Date": r.gstrDate,
+      "GSTR Amount": r.gstrAmount,
+      "Match Confidence (%)": r.confidence,
+      "Status": r.status,
+      "AI Insights": r.insights.join("; "),
+      "Suggested Action": r.suggestion || ""
+    }));
+
+    // 2. Generate Excel file
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Reconciliation Results");
+    
+    const fileName = `Reconciliation_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    // 3. Save to History
+    addHistoryRecord({
+      totalRecords: results.length,
+      matchedCount,
+      mismatchCount,
+      reviewCount,
+      missingCount,
+      fileName
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-[#0a0a0a] overflow-hidden relative">
@@ -94,6 +133,10 @@ export default function ResultsDashboard() {
           </div>
           
           <div className="flex gap-3 w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => router.push("/history")} className="hidden sm:flex border-white/10">
+              <History className="w-4 h-4 mr-2" />
+              History
+            </Button>
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input 
@@ -102,7 +145,7 @@ export default function ResultsDashboard() {
                 className="w-full bg-[#12141a] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[#FF6B2C]/50 transition-colors"
               />
             </div>
-            <Button variant="secondary" size="sm" className="hidden sm:flex group">
+            <Button variant="secondary" size="sm" onClick={handleExport} className="hidden sm:flex group">
               <Download className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
               Export
             </Button>
