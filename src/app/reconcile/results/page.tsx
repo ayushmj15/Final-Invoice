@@ -56,13 +56,13 @@ export default function ResultsDashboard() {
       "Suggested Action": r.suggestion || ""
     }));
 
-    // 2. Generate Excel file
+    // 2. Generate CSV file
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Reconciliation Results");
     
-    const fileName = `Reconciliation_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    const fileName = `Reconciliation_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    XLSX.writeFile(workbook, fileName, { bookType: "csv" });
 
     // 3. Save to History
     addHistoryRecord({

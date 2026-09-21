@@ -60,69 +60,99 @@ export default function ProcessingPage() {
         let status: MatchResult["status"] = "Missing";
         let suggestion: string | null = null;
 
-        // Try to find exact invoice number match first
+        // 1. Normalize strings
+        const normalizeSupplier = (name: string) => {
+            let n = String(name).toLowerCase();
+            n = n.replace(/[^a-z0-9\s]/g, ''); // remove punctuation
+            n = n.replace(/\b(sri|shri|sree)\b/g, 'sree');
+            n = n.replace(/\b(m\/s|ms)\b/g, '');
+            n = n.replace(/\b(co|company|ltd|limited|pvt|private|inc|corp)\b/g, '');
+            return n.trim();
+        };
+
         const pInvNormal = String(purchase.invoice).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        
-        let possibleMatches = gstrData.filter(g => {
+        const pSuppNormal = normalizeSupplier(purchase.supplier || "");
+
+        // 2. Gather Candidates (anything with a somewhat similar name, similar invoice, or exact amount)
+        let candidates = gstrData.filter(g => {
             const gInvNormal = String(g.invoice).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            return gInvNormal === pInvNormal;
+            const gSuppNormal = normalizeSupplier(g.supplier || "");
+            
+            // Candidate if invoice matches (even partially)
+            if (pInvNormal && gInvNormal && (pInvNormal.includes(gInvNormal) || gInvNormal.includes(pInvNormal))) return true;
+            
+            // Candidate if supplier is fuzzy match
+            if (pSuppNormal && gSuppNormal && stringSimilarity.compareTwoStrings(pSuppNormal, gSuppNormal) > 0.4) return true;
+            
+            // Candidate if amount is exactly the same or very close
+            const pAmt = Number(purchase.amount || 0);
+            const gAmt = Number(g.amount || 0);
+            if (pAmt > 0 && Math.abs(pAmt - gAmt) <= 2) return true;
+
+            return false;
         });
 
-        // If no exact invoice match, try fuzzy matching supplier names
-        if (possibleMatches.length === 0) {
-            if (gstrSupplierNames.length > 0 && purchase.supplier) {
-                const matchScores = stringSimilarity.findBestMatch(String(purchase.supplier), gstrSupplierNames);
-                if (matchScores.bestMatch.rating > 0.6) {
-                    possibleMatches = gstrData.filter(g => String(g.supplier) === matchScores.bestMatch.target);
-                }
+        // If no candidates found by heuristics, fallback to checking all (expensive but safe)
+        if (candidates.length === 0) {
+            candidates = gstrData; 
+        }
+
+        // 3. Evaluate Candidates
+        candidates.forEach(gstr => {
+            let confidence = 0;
+            let insights = [];
+            
+            // Supplier Score (Max 40)
+            const gSuppNormal = normalizeSupplier(gstr.supplier || "");
+            let suppScore = stringSimilarity.compareTwoStrings(pSuppNormal, gSuppNormal);
+            
+            if (suppScore > 0.85) {
+                confidence += 40;
+                insights.push("Supplier name highly matches");
+            } else if (suppScore > 0.4) {
+                confidence += suppScore * 40;
+                insights.push("Supplier name partially matches");
+            } else {
+                insights.push("Supplier names differ");
             }
-        }
 
-        if (possibleMatches.length > 0) {
-            // Pick the best among possible matches by comparing amounts and supplier similarity
-            possibleMatches.forEach(gstr => {
-                let confidence = 0;
-                let insights = [];
-                
-                // 1. Supplier Name similarity
-                let suppScore = 0;
-                if (purchase.supplier && gstr.supplier) {
-                    suppScore = stringSimilarity.compareTwoStrings(String(purchase.supplier), String(gstr.supplier));
-                }
-                confidence += suppScore * 40; // 40% weight
-                if (suppScore > 0.9) insights.push("Supplier name nearly identical");
-                else if (suppScore > 0.6) insights.push("Supplier name partially matches");
+            // Invoice Score (Max 40)
+            const gInvNormal = String(gstr.invoice).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (pInvNormal && gInvNormal && pInvNormal === gInvNormal) {
+                confidence += 40;
+                insights.push("Invoice numbers match exactly");
+            } else if (pInvNormal && gInvNormal && (pInvNormal.includes(gInvNormal) || gInvNormal.includes(pInvNormal))) {
+                confidence += 25;
+                insights.push("Invoice numbers partially match");
+            } else {
+                insights.push("Invoice numbers differ");
+            }
 
-                // 2. Invoice Number
-                const pInv = String(purchase.invoice).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                const gInv = String(gstr.invoice).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                if (pInv === gInv) {
-                    confidence += 40; // 40% weight
-                    insights.push("Invoice numbers match exactly");
-                } else if (pInv.includes(gInv) || gInv.includes(pInv)) {
-                    confidence += 20;
-                    insights.push("Invoice numbers partially match (possible padding difference)");
-                }
+            // Amount Score (Max 20)
+            const pAmt = Number(purchase.amount || 0);
+            const gAmt = Number(gstr.amount || 0);
+            const amtDiff = Math.abs(pAmt - gAmt);
+            
+            if (amtDiff <= 2) { // Allow up to 2 units rounding difference without penalty
+                confidence += 20;
+                if (amtDiff > 0) insights.push("Amounts match with minor rounding");
+                else insights.push("Amounts match exactly");
+            } else if (pAmt > 0 && (amtDiff / pAmt) <= 0.05) { // within 5%
+                confidence += 10;
+                insights.push("Amounts differ slightly (within 5%)");
+            } else {
+                insights.push("Significant amount difference");
+            }
 
-                // 3. Amount
-                const amtDiff = Math.abs((purchase.amount || 0) - (gstr.amount || 0));
-                if (amtDiff < 1) {
-                    confidence += 20; // 20% weight
-                    insights.push("Amounts match exactly");
-                } else if (amtDiff < 10) {
-                    confidence += 10;
-                    insights.push("Minor rounding difference in amounts");
-                } else {
-                    insights.push("Significant amount difference");
-                }
+            // Small boost for near-perfect matches
+            if (confidence >= 95) confidence = 100;
 
-                if (confidence > highestConfidence) {
-                    highestConfidence = confidence;
-                    bestMatch = gstr;
-                    matchInsights = insights;
-                }
-            });
-        }
+            if (confidence > highestConfidence) {
+                highestConfidence = confidence;
+                bestMatch = gstr;
+                matchInsights = insights;
+            }
+        });
 
         if (bestMatch) {
             // Determine status based on confidence
