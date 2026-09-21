@@ -56,13 +56,23 @@ export default function ResultsDashboard() {
       "Suggested Action": r.suggestion || ""
     }));
 
-    // 2. Generate CSV file
+    // 2. Generate Excel file (using Blob to prevent corruption)
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Reconciliation Results");
     
-    const fileName = `Reconciliation_Report_${new Date().toISOString().split('T')[0]}.csv`;
-    XLSX.writeFile(workbook, fileName, { bookType: "csv" });
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+    
+    const fileName = `Reconciliation_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const url = window.URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
     // 3. Save to History
     addHistoryRecord({
