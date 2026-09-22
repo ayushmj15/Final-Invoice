@@ -93,6 +93,11 @@ export function Navbar() {
                   <Link href="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">
                     Sign In
                   </Link>
+                  <Link href="/register">
+                    <Button variant="outline" size="sm" className="text-zinc-400 hover:text-white">
+                      Register
+                    </Button>
+                  </Link>
                   <Link href="/reconcile">
                     <Button variant="primary" size="sm" className="box-glow">
                       Get Started
@@ -152,6 +157,9 @@ export function Navbar() {
                   <div className="flex flex-col gap-4">
                     <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
                       <Button variant="outline" className="w-full justify-center">Sign In</Button>
+                    </Link>
+                    <Link href="/register" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button variant="outline" className="w-full justify-center">Register</Button>
                     </Link>
                     <Link href="/reconcile" onClick={() => setIsMobileMenuOpen(false)}>
                       <Button variant="primary" className="w-full justify-center">Get Started</Button>
